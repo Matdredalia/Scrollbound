@@ -1,7 +1,8 @@
-// Chat to EPUB — export the open SillyTavern chat as an EPUB for e-readers.
+// Scrollbound — export the open SillyTavern chat as an EPUB, HTML, Markdown or text file.
 // Everything runs in the browser: no server plugin, Python or Calibre needed.
 
 import { buildEpub, detectCover, isRealSystemMessage } from './epub.js';
+import { buildMarkdown, buildText, buildHtml } from './textexport.js';
 
 const PREFS_KEY = 'chat_to_epub_prefs';
 const MAX_COVER_BYTES = 10 * 1024 * 1024;
@@ -15,8 +16,8 @@ function getCtx() {
 }
 
 function notify(kind, message) {
-    if (typeof toastr !== 'undefined') toastr[kind](message, 'Chat to EPUB');
-    else console[kind === 'error' ? 'error' : 'log']('[Chat to EPUB]', message);
+    if (typeof toastr !== 'undefined') toastr[kind](message, 'Scrollbound');
+    else console[kind === 'error' ? 'error' : 'log']('[Scrollbound]', message);
 }
 
 function loadPrefs() {
@@ -94,8 +95,20 @@ function safeFileName(title) {
     return cleaned || 'chat';
 }
 
-function download(bytes, fileName) {
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/epub+zip' }));
+const FORMATS = {
+    epub: { label: 'EPUB', ext: 'epub', type: 'application/epub+zip' },
+    html: { label: 'HTML', ext: 'html', type: 'text/html;charset=utf-8' },
+    md: { label: 'Markdown', ext: 'md', type: 'text/markdown;charset=utf-8' },
+    txt: { label: 'plain text', ext: 'txt', type: 'text/plain;charset=utf-8' },
+};
+
+function currentFormat() {
+    const f = $('cte-format').value;
+    return FORMATS[f] ? f : 'epub';
+}
+
+function download(bytes, fileName, type) {
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
@@ -110,8 +123,18 @@ function download(bytes, fileName) {
 function dialogTemplate() {
     return `
     <div class="cte-dialog" role="dialog" aria-modal="true" aria-labelledby="cte-heading">
-        <h3 id="cte-heading">Export chat as EPUB</h3>
+        <h3 id="cte-heading">Export chat</h3>
         <p class="cte-sub" id="cte-sub"></p>
+
+        <div class="cte-field">
+            <label for="cte-format">Format</label>
+            <select class="text_pole" id="cte-format" style="max-width: 220px;">
+                <option value="epub">EPUB (Kindle / e-readers)</option>
+                <option value="html">HTML (one file, opens anywhere, prints to PDF)</option>
+                <option value="md">Markdown (.md)</option>
+                <option value="txt">Plain text (.txt)</option>
+            </select>
+        </div>
 
         <div class="cte-field">
             <label for="cte-title">Title</label>
@@ -122,12 +145,12 @@ function dialogTemplate() {
                 <label for="cte-author">Author</label>
                 <input type="text" class="text_pole" id="cte-author" />
             </div>
-            <div class="cte-field" style="max-width: 110px;">
+            <div class="cte-field cte-lang-field" style="max-width: 110px;">
                 <label for="cte-language">Language</label>
                 <input type="text" class="text_pole" id="cte-language" placeholder="en" />
             </div>
         </div>
-        <div class="cte-row">
+        <div class="cte-row cte-epub-only">
             <div class="cte-field">
                 <label for="cte-series">Series <span style="opacity:.6">(optional — groups books in Calibre / Kindle)</span></label>
                 <input type="text" class="text_pole" id="cte-series" placeholder="e.g. the name of this RP" />
@@ -137,12 +160,12 @@ function dialogTemplate() {
                 <input type="number" class="text_pole" id="cte-series-index" min="0" step="any" />
             </div>
         </div>
-        <div class="cte-field">
+        <div class="cte-field cte-epub-only">
             <label for="cte-description">Description <span style="opacity:.6">(optional)</span></label>
             <textarea class="text_pole" id="cte-description" rows="3"></textarea>
         </div>
 
-        <div class="cte-field">
+        <div class="cte-field cte-cover-field">
             <span class="cte-label">Cover</span>
             <div class="cte-cover-row">
                 <div class="cte-cover-thumb" id="cte-cover-thumb"></div>
@@ -256,11 +279,24 @@ function openDialog() {
     $('cte-system').checked = prefs.includeSystem ?? false;
     $('cte-error').textContent = '';
     setCover(null);
+    $('cte-format').value = FORMATS[prefs.format] ? prefs.format : 'epub';
+    syncFormat();
     syncNameOptions();
     refreshInfo();
 
     $('cte-overlay').classList.add('cte-open');
     $('cte-title').focus();
+}
+
+// Fields that only exist in some formats are hidden for the others.
+function syncFormat() {
+    const f = currentFormat();
+    const show = (sel, on) => document.querySelectorAll(sel).forEach((n) => { n.style.display = on ? '' : 'none'; });
+    show('#cte-overlay .cte-epub-only', f === 'epub');
+    show('#cte-overlay .cte-cover-field', f === 'epub' || f === 'html');
+    show('#cte-overlay .cte-lang-field', f === 'epub' || f === 'html');
+    $('cte-export').textContent = `Export ${FORMATS[f].label}`;
+    $('cte-heading').textContent = `Export chat as ${FORMATS[f].label}`;
 }
 
 // The "repeat" option only means something while names are shown.
@@ -301,7 +337,9 @@ async function onExport() {
         // Let the button repaint before the (synchronous) rendering work starts.
         await new Promise((resolve) => setTimeout(resolve, 30));
 
-        const { bytes, count } = await buildEpub({
+        const format = currentFormat();
+        const build = { epub: buildEpub, html: buildHtml, md: buildMarkdown, txt: buildText }[format];
+        const { bytes, count } = await build({
             messages: prepareMessages(ctx, userName, charName).slice(range.from, range.to + 1),
             meta: { title, author, language, description: $('cte-description').value.trim(), series, seriesIndex: seriesIndexRaw },
             cover: coverFile ? { bytes: coverFile.bytes } : null,
@@ -309,26 +347,29 @@ async function onExport() {
             markdownToHtml: makeConverter(),
         });
 
-        download(bytes, `${safeFileName(title)}.epub`);
+        download(bytes, `${safeFileName(title)}.${FORMATS[format].ext}`, FORMATS[format].type);
         const prefs = loadPrefs();
         const seriesByChar = { ...(prefs.seriesByChar || {}) };
         const index = Number(seriesIndexRaw);
-        if (series) seriesByChar[charName] = { name: series, next: seriesIndexRaw !== '' && Number.isFinite(index) ? index + 1 : '' };
-        else delete seriesByChar[charName];
+        // Series numbers only belong to EPUBs; leave them alone for the other formats.
+        if (format === 'epub') {
+            if (series) seriesByChar[charName] = { name: series, next: seriesIndexRaw !== '' && Number.isFinite(index) ? index + 1 : '' };
+            else delete seriesByChar[charName];
+        }
         // Remember where this book ended so the next one can start right after it.
         const rangeNext = { ...(prefs.rangeNext || {}) };
         const chatKey = currentChatId(ctx);
         if (range.explicitTo && range.to < ctx.chat.length - 1) rangeNext[chatKey] = range.to + 1;
         else delete rangeNext[chatKey];
-        savePrefs({ ...prefs, author, language, ...options, seriesByChar, rangeNext });
+        savePrefs({ ...prefs, author, language, ...options, seriesByChar, rangeNext, format });
         notify('success', `Exported ${count} messages.`);
         closeDialog();
     } catch (e) {
-        console.error('[Chat to EPUB] Export failed:', e);
+        console.error('[Scrollbound] Export failed:', e);
         $('cte-error').textContent = `Export failed: ${e.message}`;
     } finally {
         button.disabled = false;
-        button.textContent = 'Export EPUB';
+        syncFormat();
     }
 }
 
@@ -351,6 +392,7 @@ function injectDialog() {
     $('cte-cover-clear').addEventListener('click', () => setCover(null));
     $('cte-cover-input').addEventListener('change', (e) => onCoverChosen(e.target));
     $('cte-names').addEventListener('change', syncNameOptions);
+    $('cte-format').addEventListener('change', syncFormat);
     $('cte-system').addEventListener('change', refreshInfo);
     $('cte-from').addEventListener('input', refreshInfo);
     $('cte-to').addEventListener('input', refreshInfo);
@@ -362,7 +404,7 @@ function injectMenuButton() {
     const item = document.createElement('div');
     item.id = 'cte-menu-button';
     item.className = 'list-group-item flex-container flexGap5';
-    item.innerHTML = '<div class="fa-solid fa-book extensionsMenuExtensionButton"></div> Export to EPUB';
+    item.innerHTML = '<div class="fa-solid fa-book extensionsMenuExtensionButton"></div> Export chat (EPUB, HTML, Markdown, text)';
     item.addEventListener('click', openDialog);
     menu.appendChild(item);
 }

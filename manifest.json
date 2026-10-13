@@ -1,12 +1,12 @@
 {
-  "display_name": "Chat to EPUB",
+  "display_name": "Scrollbound",
   "loading_order": 100,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "Matdredalia",
-  "version": "1.2.4",
-  "homePage": "https://github.com/Matdredalia/Chat-to-ePub",
+  "version": "1.3.0",
+  "homePage": "https://github.com/Matdredalia/Scrollbound",
   "auto_update": false
 }

@@ -1,14 +1,14 @@
-# Chat to EPUB (SillyTavern extension)
+# Scrollbound (SillyTavern extension)
 
-Export the chat you have open as an EPUB for your Kindle or e-reader, straight from SillyTavern. It runs entirely in the browser — no server plugin, Python or Calibre needed.
+Bind the chat you have open into a book for your Kindle or e-reader (EPUB), or export it as HTML, Markdown or plain text, straight from SillyTavern. It runs entirely in the browser — no server plugin, Python or Calibre needed.
 
-**Alpha.** Working title.
+**Alpha.** Formerly “Chat to EPUB”; the internal settings key keeps the old name so remembered series numbers carry over.
 
 ## Use
 
-Open a chat, then wand menu → **Export to EPUB**. Fill in:
+Open a chat, then wand menu → **Export chat**. Pick a **Format**: EPUB (for Kindle and e-readers), HTML (one self-contained file that opens anywhere and prints to PDF), Markdown (`.md`) or plain text (`.txt`). Then fill in:
 
-- **Title, author, language, description** — written into the EPUB's metadata.
+- **Title, author, language, description** — written into the EPUB's metadata (the HTML file uses title, author, language and cover).
 - **Series and book number** — groups the books of one RP together in Calibre and on Kindle. It's remembered per character, and the next book number is filled in for you.
 - **Cover** — pick a JPEG or PNG. It's embedded in the file, so it shows on the device.
 - **Chapters** — start a new chapter every N messages (0 = one chapter).
@@ -16,7 +16,7 @@ Open a chat, then wand menu → **Export to EPUB**. Fill in:
 - **Speaker names**, and whether to repeat them on every message.
 - **System / narrator notices** — off by default. This includes TunnelVision summary markers and tool-call notices, so they stay out of the book unless you turn this on.
 
-Your browser downloads the `.epub`. Author, language and the toggles are remembered for next time.
+Series, description and (for Markdown/text) cover and language only appear for the formats that use them. Your browser downloads the file. Author, language and the toggles are remembered for next time.
 
 ## What carries over
 

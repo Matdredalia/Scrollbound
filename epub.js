@@ -24,7 +24,7 @@ div.cover img { max-width: 100%; max-height: 100%; }
 `;
 
 // Reasoning / hidden-thought blocks some models emit; not part of the story.
-const THINK_RE = /<(think|thinking|thought|reasoning)>[\s\S]*?<\/\1>/gi;
+export const THINK_RE = /<(think|thinking|thought|reasoning)>[\s\S]*?<\/\1>/gi;
 
 const COVER_TYPES = [
     { type: 'image/jpeg', ext: 'jpg', magic: [0xff, 0xd8, 0xff] },
